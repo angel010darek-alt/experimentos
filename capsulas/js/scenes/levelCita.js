@@ -64,9 +64,18 @@ class CitaScene {
     this.frame++;
     this.hoverBack = pointInRect(vMouse(), this.backBtn);
 
-    // Caminar hacia el objetivo.
-    const dx = this.targetX - this.girl.x;
-    if (Math.abs(dx) > 0.5) this.girl.x += constrain(dx, -1.15, 1.15);
+    // Caminar: teclado (A/D o flechas) tiene prioridad; si no, hacia el toque.
+    let kb = 0;
+    if (keyIsDown(65) || keyIsDown(LEFT_ARROW)) kb -= 1;   // A / ←
+    if (keyIsDown(68) || keyIsDown(RIGHT_ARROW)) kb += 1;  // D / →
+    if (kb !== 0) {
+      this.girl.x = constrain(this.girl.x + kb * 1.4, 40, this.him.x);
+      this.targetX = this.girl.x;
+      this.moved = true;
+    } else {
+      const dx = this.targetX - this.girl.x;
+      if (Math.abs(dx) > 0.5) this.girl.x += constrain(dx, -1.15, 1.15);
+    }
 
     // Revelar recuerdos al pasar cerca.
     for (const p of this.pois) {
@@ -174,7 +183,7 @@ class CitaScene {
     // Pista inicial
     if (!this.moved && (this.frame % 90) < 60) {
       pg.textAlign(CENTER, CENTER); pg.fill(pg.color(244, 236, 219, 150)); pg.textSize(8);
-      pg.text('toca para acercarte a él', VIRTUAL_W / 2, 40);
+      pg.text('muévete con A / D  o  ← →  para acercarte a él', VIRTUAL_W / 2, 40);
     }
 
     // Recuerdo en texto
