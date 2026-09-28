@@ -26,6 +26,14 @@ function mousePressed() {
   SM.mousePressed(screenToVirtual(mouseX, mouseY));
 }
 
+function mouseDragged() {
+  SM.mouseDragged(screenToVirtual(mouseX, mouseY));
+}
+
+function mouseReleased() {
+  SM.mouseReleased(screenToVirtual(mouseX, mouseY));
+}
+
 // Atajos de desarrollo (borrar en producción):
 //   R = reiniciar progreso   ·   T = marcar todos los tulipanes
 function keyPressed() {

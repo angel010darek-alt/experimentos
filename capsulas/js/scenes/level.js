@@ -97,6 +97,7 @@ class LevelScene {
 // existe, o la plantilla genérica (stub) para los que faltan.
 function createLevelScene(id) {
   if (id === 'cita') return new CitaScene();
+  if (id === 'disco') return new DiscoScene();
   return new LevelScene(id);
 }
 

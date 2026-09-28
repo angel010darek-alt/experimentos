@@ -66,4 +66,14 @@ const SM = {
     if (this.phase !== 'idle') return;
     if (this.current && this.current.mousePressed) this.current.mousePressed(v);
   },
+
+  mouseDragged(v) {
+    if (this.phase !== 'idle') return;
+    if (this.current && this.current.mouseDragged) this.current.mouseDragged(v);
+  },
+
+  mouseReleased(v) {
+    if (this.phase !== 'idle') return;
+    if (this.current && this.current.mouseReleased) this.current.mouseReleased(v);
+  },
 };
