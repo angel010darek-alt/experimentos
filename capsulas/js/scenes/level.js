@@ -93,6 +93,13 @@ class LevelScene {
   }
 }
 
+// Fábrica de escenas de nivel: devuelve la escena concreta si ya
+// existe, o la plantilla genérica (stub) para los que faltan.
+function createLevelScene(id) {
+  if (id === 'cita') return new CitaScene();
+  return new LevelScene(id);
+}
+
 // Tulipán mínimo en pixel art (motivo del final secreto).
 function drawTulip(pg, x, y, alpha) {
   pg.push();

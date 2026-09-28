@@ -99,7 +99,7 @@ class HubScene {
   mousePressed(v) {
     for (const lv of LEVELS) {
       if (dist(v.x, v.y, lv.pos.x, lv.pos.y) <= STAR_HIT_R) {
-        SM.change(new LevelScene(lv.id));
+        SM.change(createLevelScene(lv.id));
         return;
       }
     }
