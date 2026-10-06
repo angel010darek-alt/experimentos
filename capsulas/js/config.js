@@ -16,7 +16,7 @@ const VIRTUAL_H = 216; // 16:9
 const PALETTES = {
   title:  { bg: '#0f0e17', bg2: '#171528', ink: '#f4ecdb', accent: '#eba54f', dim: '#3a3654' },
   hub:    { bg: '#0f0e17', bg2: '#171528', ink: '#f4ecdb', accent: '#eba54f', dim: '#3a3654' },
-  cita:   { bg: '#2a1e2e', ink: '#f4ecdb', accent: '#eba54f', a2: '#f2c886', a3: '#b5623a', dim: '#5a4550' },
+  cita:   { bg: '#1e1a22', ink: '#f6ecd9', accent: '#e8a85a', a2: '#8fb6d6', a3: '#b89468', dim: '#5a5460' },
   disco:  { bg: '#2b1f28', ink: '#f0d9e2', accent: '#e79bb6', a2: '#cf7f9d', a3: '#8a5a6e', dim: '#5c4552' },
   noche:  { bg: '#0f1224', ink: '#dfe6ff', accent: '#eba54f', a2: '#3f5488', a3: '#26314f', dim: '#2a3350' },
   quince: { bg: '#2a2130', ink: '#f6e7d8', accent: '#d9a441', a2: '#e7bcae', a3: '#b98a6a', dim: '#584860' },
