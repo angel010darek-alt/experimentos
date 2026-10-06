@@ -1,29 +1,35 @@
 // ============================================================
 //  Nivel 2 — Reconstruir · "Construir lo nuestro"
 // ------------------------------------------------------------
-//  Dentro del Mixup. DOS FASES:
-//   1) HOJEAR (buscar): estantes con discos de artistas que
-//      comparten; al tocarlos se voltean y muestran el nombre.
-//      Escondidas entre ellos están las 6 piezas de la portada.
-//   2) ARMAR (reconstruir): con las 6 piezas se arma la portada
-//      de "Cry Baby" (Melanie Martinez) y el vinilo gira y suena:
-//        "poco a poco, lo nuestro."
-//
-//  "compartimos muchas canciones" -> los discos son los de ustedes.
+//  El Mixup como TIENDA CAMINABLE. Ella recorre la tienda
+//  (A/D, flechas o toque; la cámara la sigue) entre secciones
+//  —Rock, Indie, En español, Pop— hojeando discos de los
+//  artistas que comparten. Las 6 piezas de la portada de
+//  "Cry Baby" están REPARTIDAS por toda la tienda: hay que
+//  explorarla. Con las 6, se arma la portada en el mostrador
+//  y el vinilo gira y suena:  "poco a poco, lo nuestro."
 // ============================================================
 
 const COVER_W = 96, COVER_H = 96;
 const PCOLS = 3, PROWS = 2;
-const PW = COVER_W / PCOLS, PH = COVER_H / PROWS;   // 32 x 48
+const PW = COVER_W / PCOLS, PH = COVER_H / PROWS;
 const SNAP = 22;
+const DFY = 152;                 // piso de la tienda
+const WORLD_W = 720;             // la tienda es más ancha que la pantalla
+const REACH = 58;                // alcance para hojear un disco
 
-// Vuestros artistas (editable). El orden se mezcla al entrar.
 const DISCO_ARTISTS = [
   'Deftones', 'Jeff Buckley', 'Radiohead', 'Enjambre', 'The Cure',
   'Cigarettes After Sex', 'TV Girl', 'The Smiths', 'Lana Del Rey',
   'The Marías', 'Weezer', 'Melanie Martinez',
 ];
 const SLEEVE_COLS = ['#8a5a6e', '#5a6e8a', '#6e8a5a', '#8a7a5a', '#7a5a8a', '#5a8a7e'];
+const SECTIONS = [
+  { label: 'ROCK',        cx: 90 },
+  { label: 'INDIE',       cx: 260 },
+  { label: 'EN ESPAÑOL',  cx: 430 },
+  { label: 'POP',         cx: 600 },
+];
 
 class DiscoScene {
   enter() {
@@ -37,44 +43,58 @@ class DiscoScene {
     this.drawCryBaby(this.cover);
     this.coverX = 144; this.coverY = 38;
 
-    // --- Discos (rejilla 3 x 4 = 12) ---
+    // Ella camina por el mundo (coords del mundo).
+    this.girl = { x: 60, y: 128 };
+    this.targetX = 60;
+    this.camX = 0;
+    this.moved = false;
+
+    // Discos repartidos: 3 por sección (12), 6 esconden pieza.
     const artists = [...DISCO_ARTISTS];
     for (let i = artists.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [artists[i], artists[j]] = [artists[j], artists[i]]; }
-    // 6 índices al azar esconden pieza
     const idx = [...Array(12).keys()];
     for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
     const pieceOf = {}; idx.slice(0, 6).forEach((slot, k) => pieceOf[slot] = k);
 
     this.records = [];
-    const cols = 3, rows = 4, w = 70, h = 26, x0 = 38, y0 = 44, sx = 118, sy = 38;
-    for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-      const n = r * cols + c;
-      this.records.push({
-        x: x0 + c * sx, y: y0 + r * sy, w, h,
-        artist: artists[n], color: SLEEVE_COLS[n % SLEEVE_COLS.length],
-        flipped: false, hasPiece: pieceOf[n] !== undefined, pieceIndex: pieceOf[n], collected: false,
-        flip: 0,
-      });
+    let n = 0;
+    for (const sec of SECTIONS) {
+      for (let k = -1; k <= 1; k++) {
+        this.records.push({
+          x: sec.cx + k * 38 - 15, y: 94, w: 30, h: 38,
+          artist: artists[n], color: SLEEVE_COLS[n % SLEEVE_COLS.length],
+          flipped: false, hasPiece: pieceOf[n] !== undefined, pieceIndex: pieceOf[n], collected: false, flip: 0,
+        });
+        n++;
+      }
     }
     this.piecesFound = 0;
 
-    // --- Piezas (para la fase de armar) ---
+    // Piezas para la fase de armar.
     this.pieces = [];
     for (let r = 0; r < PROWS; r++) for (let c = 0; c < PCOLS; c++)
       this.pieces.push({ sx: c * PW, sy: r * PH, tx: this.coverX + c * PW, ty: this.coverY + r * PH, cur: { x: 0, y: 0 }, placed: false });
-    this.placedCount = 0;
-    this.done = false; this.doneFrame = 0; this.spin = 0;
+    this.placedCount = 0; this.done = false; this.doneFrame = 0; this.spin = 0;
     this.dragging = null; this.dragOff = { x: 0, y: 0 };
 
     this.backBtn = { x: 10, y: VIRTUAL_H - 22, w: 52, h: 13 };
     this.hoverBack = false;
-    this.tulip = { x: 362, y: 24, r: 6 };
+    this.tulip = { x: 540, y: 64, r: 6 };   // en el mundo (pared)
   }
 
   update() {
     this.frame++;
     this.hoverBack = pointInRect(vMouse(), this.backBtn);
     for (const rec of this.records) if (rec.flipped && rec.flip < 1) rec.flip = Math.min(1, rec.flip + 0.15);
+
+    if (this.phase === 'search') {
+      let kb = 0;
+      if (keyIsDown(65) || keyIsDown(LEFT_ARROW)) kb -= 1;
+      if (keyIsDown(68) || keyIsDown(RIGHT_ARROW)) kb += 1;
+      if (kb !== 0) { this.girl.x = constrain(this.girl.x + kb * 1.35, 20, WORLD_W - 20); this.targetX = this.girl.x; this.moved = true; }
+      else { const dx = this.targetX - this.girl.x; if (Math.abs(dx) > 0.5) this.girl.x += constrain(dx, -1.3, 1.3); }
+      this.camX = constrain(this.girl.x - VIRTUAL_W / 2, 0, WORLD_W - VIRTUAL_W);
+    }
     if (this.done) { this.spin += 0.05; this.doneFrame++; }
   }
 
@@ -84,23 +104,18 @@ class DiscoScene {
     this.pieces.forEach((p, i) => { p.cur.x = seed[i].x; p.cur.y = seed[i].y; });
   }
 
-  // -------- Portada "Cry Baby" en pixel art --------
   drawCryBaby(g) {
     g.noStroke();
     const top = g.color('#f2d2e3'), bot = g.color('#e3b2cb');
     for (let i = 0; i < 8; i++) { g.fill(g.lerpColor(top, bot, i / 7)); g.rect(0, i * 12, COVER_W, 13); }
     g.fill(255, 255, 255, 150); g.ellipse(18, 18, 26, 12); g.ellipse(78, 14, 30, 12); g.ellipse(50, 10, 22, 9);
     g.textAlign(CENTER, CENTER); g.textStyle(BOLD); g.textSize(12);
-    g.fill('#1f49b0'); g.text('CRYBABY', 48, 17);
-    g.fill(255, 255, 255, 90); g.text('CRYBABY', 47, 16);
-    g.textStyle(NORMAL);
+    g.fill('#1f49b0'); g.text('CRYBABY', 48, 17); g.fill(255, 255, 255, 90); g.text('CRYBABY', 47, 16); g.textStyle(NORMAL);
     const hx = 48, hy = 36;
-    g.fill('#f0a7c6'); g.rect(hx - 6, hy - 5, 6, 13);
-    g.fill('#1a1620'); g.rect(hx, hy - 5, 6, 13);
+    g.fill('#f0a7c6'); g.rect(hx - 6, hy - 5, 6, 13); g.fill('#1a1620'); g.rect(hx, hy - 5, 6, 13);
     g.fill('#f0cdb0'); g.rect(hx - 4, hy, 8, 8);
     g.fill('#9fc0e8'); g.rect(hx - 3, hy + 3, 2, 1); g.rect(hx + 1, hy + 3, 2, 1);
-    g.fill('#c0392b'); g.rect(hx - 1, hy + 5, 3, 1);
-    g.fill('#5a86c4'); g.rect(hx + 3, hy + 6, 1, 3);
+    g.fill('#c0392b'); g.rect(hx - 1, hy + 5, 3, 1); g.fill('#5a86c4'); g.rect(hx + 3, hy + 6, 1, 3);
     g.fill(255); g.ellipse(hx, hy + 16, 30, 16); g.ellipse(hx - 10, hy + 15, 16, 12); g.ellipse(hx + 10, hy + 15, 16, 12);
     g.fill('#5a86c4'); for (let k = 0; k < 6; k++) { const dx = 26 + k * 9, dy = 66 + (k % 2) * 6; g.rect(dx, dy, 2, 3); g.rect(dx, dy + 6, 2, 3); }
     g.fill('#23466f'); g.rect(0, 82, COVER_W, 14);
@@ -110,37 +125,73 @@ class DiscoScene {
 
   draw(pg) {
     pg.background(this.pal.bg);
-    if (this.phase === 'search') this.drawSearch(pg); else this.drawBuild(pg);
-    if (!Game.tulips['disco']) drawTulip(pg, this.tulip.x, this.tulip.y, 0.5);
+    if (this.phase === 'search') this.drawStore(pg); else this.drawBuild(pg);
     this.drawHUD(pg);
   }
 
-  // ---------- FASE 1: hojear ----------
-  drawSearch(pg) {
-    // estantes
+  // ---------- FASE 1: tienda caminable ----------
+  drawStore(pg) {
+    pg.push();
+    pg.translate(-Math.round(this.camX), 0);
+
+    // pared y piso
     pg.noStroke();
-    for (let r = 0; r < 4; r++) { pg.fill('#241a22'); pg.rect(30, 70 + r * 38, 324, 3); }
-    const v = vMouse();
-    for (const rec of this.records) {
-      const hover = pointInRect(v, rec) && !rec.flipped;
-      pg.push();
-      if (!rec.flipped) {
-        // disco de espaldas (en el cajón)
-        pg.fill(hover ? '#4a3a44' : '#33262e'); pg.rect(rec.x, rec.y, rec.w, rec.h, 2);
-        pg.fill('#241a22'); pg.rect(rec.x + 4, rec.y + 4, rec.w - 8, rec.h - 8, 1);
-        pg.fill(this.pal.a2); pg.ellipse(rec.x + rec.w / 2, rec.y + rec.h / 2, 12); // vinilo asomando
-        pg.fill('#241a22'); pg.ellipse(rec.x + rec.w / 2, rec.y + rec.h / 2, 3);
-        if (hover) { pg.noFill(); pg.stroke(pg.color(240, 217, 226, 120)); pg.strokeWeight(1); pg.rect(rec.x, rec.y, rec.w, rec.h, 2); }
-      } else {
-        // portada volteada con el nombre
-        pg.fill(rec.color); pg.rect(rec.x, rec.y, rec.w, rec.h, 2);
-        pg.fill('#1a1620'); pg.rect(rec.x + rec.w - 10, rec.y + 3, 7, rec.h - 6); // lomo
-        pg.fill('#f6ecd9'); pg.textAlign(CENTER, CENTER); pg.textSize(6);
-        pg.text(rec.artist, rec.x + (rec.w - 8) / 2, rec.y + rec.h / 2);
-        if (rec.hasPiece) { pg.fill(this.pal.accent); pg.textSize(7); pg.text('✦', rec.x + 6, rec.y + 6); }
-      }
-      pg.pop();
+    pg.fill('#241b22'); pg.rect(0, 28, WORLD_W, DFY - 28);
+    pg.fill('#2e2430'); pg.rect(0, 28, WORLD_W, 10);          // cornisa
+    pg.fill('#2a2027'); pg.rect(0, DFY, WORLD_W, VIRTUAL_H - DFY);  // piso
+    pg.fill('#201820'); pg.rect(0, DFY, WORLD_W, 3);
+
+    // secciones (cajones + letrero + discos)
+    const v = vMouse(); const wx = v.x + this.camX, wy = v.y;
+    for (const sec of SECTIONS) {
+      // letrero
+      pg.fill('#3a2f3a'); pg.rect(sec.cx - 40, 48, 80, 12, 1);
+      pg.fill(this.pal.accent); pg.textAlign(CENTER, CENTER); pg.textSize(7); pg.text(sec.label, sec.cx, 54);
+      // cajón
+      pg.fill('#3a2c33'); pg.rect(sec.cx - 62, 132, 124, 20, 1);
+      pg.fill('#2a1f26'); pg.rect(sec.cx - 62, 132, 124, 4);
     }
+
+    // discos
+    for (const rec of this.records) {
+      const hover = !rec.flipped && wx >= rec.x && wx <= rec.x + rec.w && wy >= rec.y && wy <= rec.y + rec.h;
+      if (!rec.flipped) {
+        pg.fill(hover ? '#4a3a44' : '#33262e'); pg.rect(rec.x, rec.y, rec.w, rec.h, 2);
+        pg.fill('#241a22'); pg.rect(rec.x + 3, rec.y + 3, rec.w - 6, rec.h - 6, 1);
+        pg.fill(this.pal.a2); pg.ellipse(rec.x + rec.w / 2, rec.y + rec.h / 2, 12);
+        pg.fill('#241a22'); pg.ellipse(rec.x + rec.w / 2, rec.y + rec.h / 2, 3);
+        if (hover) { pg.noFill(); pg.stroke(pg.color(240, 217, 226, 130)); pg.strokeWeight(1); pg.rect(rec.x, rec.y, rec.w, rec.h, 2); pg.noStroke(); }
+      } else {
+        pg.fill(rec.color); pg.rect(rec.x, rec.y, rec.w, rec.h, 2);
+        pg.fill('#1a1620'); pg.rect(rec.x + rec.w - 6, rec.y + 2, 4, rec.h - 4);
+        pg.fill('#f6ecd9'); pg.textAlign(CENTER, CENTER); pg.textSize(5); pg.text(rec.artist, rec.x + (rec.w - 6) / 2, rec.y + rec.h / 2);
+        if (rec.hasPiece) { pg.fill(this.pal.accent); pg.textSize(7); pg.text('✦', rec.x + 5, rec.y + 6); }
+      }
+    }
+
+    // tulipán oculto (en la pared)
+    if (!Game.tulips['disco']) drawTulip(pg, this.tulip.x, this.tulip.y, 0.5);
+
+    // mostrador al final (tornamesa)
+    pg.fill('#3a2c33'); pg.rect(WORLD_W - 70, 120, 60, 32, 1);
+    pg.fill('#1b1620'); pg.ellipse(WORLD_W - 40, 130, 20); pg.fill(this.pal.accent); pg.ellipse(WORLD_W - 40, 130, 5);
+
+    // ella
+    this.drawGirl(pg, this.girl.x, this.girl.y);
+    pg.pop();
+
+    // flechas de "hay más tienda"
+    pg.noStroke();
+    if (this.camX > 2) { pg.fill(pg.color(246, 236, 217, 90)); pg.triangle(6, 90, 12, 86, 12, 94); }
+    if (this.camX < WORLD_W - VIRTUAL_W - 2) { pg.fill(pg.color(246, 236, 217, 90)); pg.triangle(VIRTUAL_W - 6, 90, VIRTUAL_W - 12, 86, VIRTUAL_W - 12, 94); }
+  }
+
+  drawGirl(pg, x, y) {
+    pg.fill('#e6c34e'); pg.rect(x - 4, y + 1, 3, 9); pg.rect(x + 3, y + 1, 3, 9); pg.rect(x - 4, y, 10, 3);
+    pg.fill('#171420'); pg.rect(x - 4, y - 1, 10, 3);
+    pg.fill('#e8c3a0'); pg.rect(x - 2, y + 2, 6, 6);
+    pg.fill('#17141c'); pg.rect(x - 3, y + 8, 8, 12, 1);
+    pg.fill(pg.color(23, 20, 28, 70)); pg.rect(x - 3, DFY + 1, 8, 4);
   }
 
   // ---------- FASE 2: armar ----------
@@ -171,6 +222,7 @@ class DiscoScene {
       pg.image(this.cover, p.cur.x, p.cur.y, PW, PH, p.sx, p.sy, PW, PH);
       pg.noFill(); pg.stroke(pg.color(240, 217, 226, 60)); pg.strokeWeight(1); pg.rect(p.cur.x, p.cur.y, PW, PH); pg.noStroke();
     }
+    if (!Game.tulips['disco']) drawTulip(pg, 362, 24, 0.5);
   }
 
   drawHUD(pg) {
@@ -179,55 +231,62 @@ class DiscoScene {
     pg.fill(this.pal.ink); pg.textSize(13); pg.text('Construir lo nuestro', 10, 21);
 
     pg.textAlign(RIGHT, TOP); pg.fill(this.pal.accent); pg.textSize(7);
-    if (this.phase === 'search') pg.text('PIEZAS ' + this.piecesFound + '/6', VIRTUAL_W - 10, 9);
-    else pg.text('PIEZAS ' + this.placedCount + '/6', VIRTUAL_W - 10, 9);
+    pg.text('PIEZAS ' + (this.phase === 'search' ? this.piecesFound : this.placedCount) + '/6', VIRTUAL_W - 10, 9);
 
-    if (this.phase === 'search' && this.piecesFound < 6 && (this.frame % 120) < 80) {
-      pg.textAlign(CENTER, TOP); pg.fill(pg.color(246, 236, 217, 130)); pg.textSize(7);
-      pg.text('hojea los discos — busca las 6 piezas', VIRTUAL_W / 2, 33);
+    if (this.phase === 'search' && !this.moved && (this.frame % 110) < 72) {
+      pg.textAlign(CENTER, TOP); pg.fill(pg.color(246, 236, 217, 140)); pg.textSize(7);
+      pg.text('camina la tienda (A/D o ← →) y hojea los discos', VIRTUAL_W / 2, 33);
     }
-    if (this.caption && this.frame - this.captionFrame < 120) {
-      const a = Math.min(1, (120 - (this.frame - this.captionFrame)) / 40);
+    if (this.caption && this.frame - this.captionFrame < 130) {
+      const a = Math.min(1, (130 - (this.frame - this.captionFrame)) / 40);
       pg.textAlign(CENTER, CENTER); pg.fill(pg.color(246, 236, 217, 255 * a)); pg.textSize(8);
-      pg.text(this.caption, VIRTUAL_W / 2, VIRTUAL_H - 32);
+      pg.text(this.caption, VIRTUAL_W / 2, VIRTUAL_H - 30);
     }
     if (this.done) {
       const a = Math.min(1, this.doneFrame / 40);
       pg.textAlign(CENTER, CENTER); pg.fill(pg.color(240, 217, 226, 255 * a)); pg.textSize(9);
-      pg.text('poco a poco, lo nuestro.', VIRTUAL_W / 2, VIRTUAL_H - 32);
+      pg.text('poco a poco, lo nuestro.', VIRTUAL_W / 2, VIRTUAL_H - 30);
     }
     drawButton(pg, '← volver', this.backBtn.x, this.backBtn.y, this.backBtn.w, this.backBtn.h, this.pal, this.hoverBack);
   }
 
   mousePressed(v) {
     if (pointInRect(v, this.backBtn)) { SM.change(new HubScene()); return; }
-    if (!Game.tulips['disco'] && dist(v.x, v.y, this.tulip.x, this.tulip.y) <= this.tulip.r) { Game.foundTulip('disco'); return; }
 
     if (this.phase === 'search') {
+      const wx = v.x + this.camX, wy = v.y;
+      if (!Game.tulips['disco'] && dist(wx, wy, this.tulip.x, this.tulip.y) <= this.tulip.r) {
+        Game.foundTulip('disco'); this.caption = 'un tulipán…'; this.captionFrame = this.frame; return;
+      }
       for (const rec of this.records) {
-        if (!rec.flipped && pointInRect(v, rec)) {
-          rec.flipped = true;
-          this.caption = '“' + rec.artist + '”';
-          this.captionFrame = this.frame;
-          if (rec.hasPiece && !rec.collected) {
-            rec.collected = true; this.piecesFound++;
-            this.caption = '“' + rec.artist + '”  · pieza encontrada';
-            if (this.piecesFound >= 6) this.startBuild();
+        if (!rec.flipped && wx >= rec.x && wx <= rec.x + rec.w && wy >= rec.y && wy <= rec.y + rec.h) {
+          if (Math.abs(this.girl.x - (rec.x + rec.w / 2)) <= REACH) {
+            rec.flipped = true;
+            this.caption = '“' + rec.artist + '”';
+            this.captionFrame = this.frame;
+            if (rec.hasPiece && !rec.collected) {
+              rec.collected = true; this.piecesFound++;
+              this.caption = '“' + rec.artist + '”  · pieza encontrada';
+              if (this.piecesFound >= 6) this.startBuild();
+            }
+          } else {
+            this.targetX = constrain(rec.x + rec.w / 2, 20, WORLD_W - 20); this.moved = true;
           }
           return;
         }
       }
+      this.targetX = constrain(wx, 20, WORLD_W - 20); this.moved = true;
       return;
     }
 
-    // fase build: tomar pieza
+    // build
+    if (!Game.tulips['disco'] && dist(v.x, v.y, 362, 24) <= 6) { Game.foundTulip('disco'); return; }
     for (let i = this.pieces.length - 1; i >= 0; i--) {
       const p = this.pieces[i];
       if (p.placed) continue;
       if (v.x >= p.cur.x && v.x <= p.cur.x + PW && v.y >= p.cur.y && v.y <= p.cur.y + PH) {
         this.dragging = p; this.dragOff = { x: p.cur.x - v.x, y: p.cur.y - v.y };
-        this.pieces.push(this.pieces.splice(i, 1)[0]);
-        return;
+        this.pieces.push(this.pieces.splice(i, 1)[0]); return;
       }
     }
   }
